@@ -1,0 +1,154 @@
+@using SignalR.Module.Chat.Services
+@using SignalR.Module.Chat.Models
+@using Microsoft.AspNetCore.SignalR.Client
+
+@namespace SignalR.Module.Chat
+@inherits ModuleBase
+@inject IChatService ChatService
+@inject NavigationManager NavigationManager
+@inject IStringLocalizer<Index> Localizer
+@implements IAsyncDisposable
+
+
+@if (_Chats == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+
+    <div class="form-group">
+        <label>
+            User:
+            <input @bind="userInput" />
+        </label>
+    </div>
+    <div class="form-group">
+        <label>
+            Message:
+            <input @bind="messageInput" size="50" />
+        </label>
+    </div>
+    <button @onclick="Send" disabled="@(!IsConnected)">Send</button>
+
+    <hr>
+
+    <ul id="messagesList">
+        @foreach (var message in messages)
+        {
+            <li>@message</li>
+        }
+    </ul>
+
+    <hr>
+    <br/>
+    <br />
+    <br />
+
+    <ActionLink Action="Add" Security="SecurityAccessLevel.Edit" Text="Add Chat" ResourceKey="Add" />
+    <br />
+    <br />
+    @if (@_Chats.Count != 0)
+    {
+        <Pager Items="@_Chats">
+            <Header>
+                <th style="width: 1px;">&nbsp;</th>
+                <th style="width: 1px;">&nbsp;</th>
+                <th>@Localizer["Name"]</th>
+            </Header>
+            <Row>
+                <td><ActionLink Action="Edit" Parameters="@($"id=" + context.ChatId.ToString())" ResourceKey="Edit"  /></td>
+                <td><ActionDialog Header="Delete Chat" Message="Are You Sure You Wish To Delete This Chat?" Action="Delete" Security="SecurityAccessLevel.Edit" Class="btn btn-danger" OnClick="@(async () => await Delete(context))" ResourceKey="Delete"  Id="@context.ChatId.ToString()" /></td>
+                <td>@context.Name</td>
+            </Row>
+        </Pager>
+    }
+    else
+    {
+        <p>@Localizer["Message.DisplayNone"]</p>
+    }
+}
+
+@code {
+    public override string RenderMode => RenderModes.Static;
+    private HubConnection? hubConnection;
+    private List<string> messages = [];
+    private string? userInput;
+    private string? messageInput;
+
+    public override List<Resource> Resources => new List<Resource>()
+    {
+        new Stylesheet("_content/SignalR.Module.Chat/Module.css"),
+        new Script("_content/SignalR.Module.Chat/Module.js")
+    };
+
+    List<Chat> _Chats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _Chats = await ChatService.GetChatsAsync(ModuleState.ModuleId);
+
+
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl(NavigationManager.ToAbsoluteUri("/chathub"))
+                .Build();
+
+            hubConnection.On<string, string>("ReceiveMessage", (user, message) =>
+            {
+                var encodedMsg = $"{user}: {message}";
+                messages.Add(encodedMsg);
+                InvokeAsync(StateHasChanged);
+            });
+
+            await hubConnection.StartAsync();
+
+
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Loading Chat {Error}", ex.Message);
+            AddModuleMessage(Localizer["Message.LoadError"], MessageType.Error);
+        }
+    }
+
+
+    private async Task Send()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.SendAsync("SendMessage", userInput, messageInput);
+        }
+    }
+
+    public bool IsConnected =>
+        hubConnection?.State == HubConnectionState.Connected;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+
+
+
+
+    private async Task Delete(Chat Chat)
+    {
+        try
+        {
+            await ChatService.DeleteChatAsync(Chat.ChatId, ModuleState.ModuleId);
+            await logger.LogInformation("Chat Deleted {Chat}", Chat);
+            _Chats = await ChatService.GetChatsAsync(ModuleState.ModuleId);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            await logger.LogError(ex, "Error Deleting Chat {Chat} {Error}", Chat, ex.Message);
+            AddModuleMessage(Localizer["Message.DeleteError"], MessageType.Error);
+        }
+    }
+}

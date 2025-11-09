@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>    
+    <Version>1.0.0</Version>
+    <Product>SignalR.Module.Chat</Product>
+    <Authors>SignalR</Authors>
+    <Company>SignalR</Company>
+    <Description>Oqtane chat module based on MS SignalR Chat example.</Description>
+    <Copyright>SignalR</Copyright>
+    <AssemblyName>SignalR.Module.Chat.Shared.Oqtane</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Oqtane.Shared"><HintPath>..\..\Oqtane.Framework\Oqtane.Server\bin\Debug\net9.0\Oqtane.Shared.dll</HintPath></Reference>
+  </ItemGroup>
+
+</Project>
